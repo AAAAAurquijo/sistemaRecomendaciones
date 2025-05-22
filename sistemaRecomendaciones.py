@@ -1,9 +1,14 @@
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import PhotoImage
+from PIL import Image, ImageTk
+from tkinter import Tk, Canvas
+from itertools import count
 import networkx as nx
 import matplotlib.pyplot as plt
 import heapq
 from networkx.algorithms.clique import find_cliques
+
 
 # ========== DATOS DE EJEMPLO ==========
 # Géneros musicales
@@ -40,7 +45,7 @@ for usuario, pref in usuarios.items():
 
 # ========== FUNCIÓN: RECOMENDAR USUARIOS SIMILARES==========
 def recomendar_usuarios_similares(usuario_nuevo, pref_nuevo, usuarios_existentes):
-    similitudes = {}
+    similitudes = {} 
     for usuario_existente, pref_existente in usuarios_existentes.items():
         if usuario_existente == usuario_nuevo:
             continue
@@ -54,6 +59,10 @@ def recomendar_usuarios_similares(usuario_nuevo, pref_nuevo, usuarios_existentes
 
 # ========== FUNCIÓN: RECOMENDAR CANCIONES ==========
 def recomendar_canciones(preferencias):
+    # Verificar si todas las preferencias son 0
+    if all(valor == 0 for valor in preferencias.values()):
+        return ["No hay recomendaciones (todos los gustos están en 0)"]
+    
     generos_preferidos = sorted(preferencias.items(), key=lambda x: x[1], reverse=True)[:2]
     canciones_recomendadas = []
     for genero, _ in generos_preferidos:
@@ -200,25 +209,99 @@ def ejecutar_recomendaciones():
     messagebox.showinfo("Resultados", resultados)
     mostrar_grafo(nombre_nuevo)
 
+class AnimatedGIF(tk.Label): #todo esto para un miserable gif...
+    def __init__(self, master, path, width=None, height=None):
+        self.frames = []
+        try:
+            # Cargar el GIF y extraer frames
+            img = Image.open(path)
+            for i in count(1):
+                self.frames.append(ImageTk.PhotoImage(
+                    img.resize((width, height), Image.LANCZOS) if width and height else img.copy()
+                ))
+                img.seek(i)
+        except EOFError:
+            pass
+        except Exception as e:
+            print(f"Error al cargar GIF: {e}")
+            return
+
+        super().__init__(master)
+        self.delay = img.info.get('duration', 100)  # Delay entre frames en ms
+        self.idx = 0
+        self.animate()
+
+    def animate(self):
+        self.config(image=self.frames[self.idx])
+        self.idx = (self.idx + 1) % len(self.frames)
+        self.after(self.delay, self.animate)
+
+def mostrar_gif(ventana, ruta_gif, ancho=None, alto=None):
+    try:
+        gif = AnimatedGIF(ventana, ruta_gif, ancho, alto)
+        return gif
+    except Exception as e:
+        print(f"Error al cargar GIF: {e}")
+        return None
+
+def set_background(root, image_path):
+    # Cargar la imagen
+    img = Image.open(image_path)
+    img = img.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
+    bg_image = ImageTk.PhotoImage(img)
+    
+    # Crear Canvas
+    canvas = Canvas(root)
+    canvas.pack(fill="both", expand=True)
+    
+    # Añadir imagen al Canvas
+    canvas.create_image(0, 0, image=bg_image, anchor="nw")
+    
+    # Guardar referencia para evitar garbage collection
+    canvas.image = bg_image
+    
+    return canvas
+
 # ========== VENTANA PRINCIPAL ==========
 ventana = tk.Tk()
 ventana.title("Sistema de Recomendación Musical")
-ventana.geometry("600x600")
+ventana.geometry("1000x800")
 
-tk.Label(ventana, text="Ingresa tu nombre:").pack()
-entrada_nombre = tk.Entry(ventana)
+try:
+    img_fondo = Image.open("fondo_musica.png")
+    img_fondo = img_fondo.resize((1000, 800), Image.LANCZOS)
+    bg_image = ImageTk.PhotoImage(img_fondo)
+    canvas = tk.Canvas(ventana, width=1000, height=800)
+    canvas.pack(fill="both", expand=True)
+    canvas.create_image(0, 0, image=bg_image, anchor="nw")
+    canvas.image = bg_image  # ¡Mantener referencia!
+except:
+    canvas = tk.Canvas(ventana, bg='lightgray')  # Fallback si no hay imagen
+    canvas.pack()
+
+# 2. Añadir widgets SOBRE el fondo (con create_window)
+frame_contenido = tk.Frame(canvas, bg='gray', bd=5, relief='ridge')
+canvas.create_window(500, 400, window=frame_contenido)
+
+# Mover todo tu contenido actual al frame_contenido
+tk.Label(frame_contenido, text="Ingresa tu nombre:", bg = 'lightgray').pack()
+entrada_nombre = tk.Entry(frame_contenido, bg = 'lightgray')
 entrada_nombre.pack()
 
-tk.Label(ventana, text="Califica tus preferencias por género (0 a 1):", font=('Arial', 12, 'bold')).pack(pady=10)
+tk.Label(frame_contenido, text="Califica tus preferencias por género (0 a 1):", font=('Arial', 12, 'bold'), bg = 'lightgray').pack(pady=10)
+
+img_logo = mostrar_gif(frame_contenido, "logo_musica_gif.gif", 200, 100)
+if img_logo:
+    img_logo.pack(pady=10)
 
 entradas_genero = {}
 for genero in generos:
-    tk.Label(ventana, text=genero).pack()
-    entrada = tk.Entry(ventana)
+    tk.Label(frame_contenido, text=genero, bg = 'lightgray').pack()
+    entrada = tk.Entry(frame_contenido, bg = 'lightgray')
     entrada.pack()
     entradas_genero[genero] = entrada
 
-tk.Button(ventana, text="Recomendar", command=ejecutar_recomendaciones, bg='lightblue').pack(pady=20)
+tk.Button(frame_contenido, text="Recomendar", command=ejecutar_recomendaciones, bg='lightblue').pack(pady=20)
 
 # ========== EJECUCIÓN INTERFAZ ==========
 ventana.mainloop()
